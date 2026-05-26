@@ -3,6 +3,8 @@ use std::env;
 use std::fs::read_to_string;
 use std::process;
 
+mod trig;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -21,6 +23,19 @@ fn main() {
             process::exit(1);
         }
     };
+
+    let result = run_script(lines);
+
+    match result {
+        None => {
+            eprintln!("failed to run script");
+            process::exit(1);
+        }
+        Some(_) => {
+            eprintln!("execution finished successfully");
+            process::exit(1);
+        }
+    };
 }
 
 enum Operator {
@@ -34,15 +49,16 @@ enum Operator {
 enum LineState {
     NewAssign,
     ApplyOperator,
+    Sin,
     DropVar,
     Unknown,
 }
 
 fn run_script(script: String) -> Option<bool> {
-    let mut vars = HashMap::<String, i32>::new();
+    let mut vars = HashMap::<String, f64>::new();
 
     for (line_idx, line) in script.lines().enumerate() {
-        let mut op: Operator = Operator::Unknown;
+        let _op: Operator = Operator::Unknown;
         let mut current_line_state: LineState = LineState::Unknown;
         let mut var_being_assigned_to = String::new();
 
@@ -53,10 +69,20 @@ fn run_script(script: String) -> Option<bool> {
                         "let" => {
                             current_line_state = LineState::NewAssign;
                         }
+                        "vars" => {
+                            println!("currently assigned vars:");
+                            for (key, val) in vars.iter() {
+                                println!("{} = {}", key, val);
+                            }
+                            break;
+                        }
+                        "sin" => {
+                            current_line_state = LineState::Sin;
+                        }
                         v => {
                             if !vars.contains_key(v) {
                                 eprintln!("unknown variable on {}: {}", line_idx + 1, v);
-                                process::exit(1);
+                                return None;
                             } else {
                                 current_line_state = LineState::ApplyOperator;
                                 var_being_assigned_to = v.to_string();
@@ -66,12 +92,48 @@ fn run_script(script: String) -> Option<bool> {
                 }
                 1 => {
                     match current_line_state {
-                        LineState::NewAssign => {}
-                        LineState::ApplyOperator => {}
+                        LineState::NewAssign => {
+                            // This is where we read the variable name.
+                            var_being_assigned_to = token.to_string();
+                        }
                         LineState::Unknown => {
                             eprintln!("syntax error at line {}: {}", line_idx + 1, token);
-                            process::exit(1);
+                            return None;
                         }
+                        LineState::Sin => match token.parse::<f64>() {
+                            Ok(f) => {
+                                println!("{}", trig::sine(f));
+                            }
+                            Err(_) => {
+                                eprintln!("invalid f64 number: {}", token);
+                                return None;
+                            }
+                        },
+                        _ => todo!(),
+                    };
+                }
+                2 => {
+                    match current_line_state {
+                        LineState::NewAssign => {
+                            if token != "=" {
+                                eprintln!("equals sign required at position 2 for assignment");
+                                return None;
+                            }
+                        }
+                        _ => todo!(),
+                    };
+                }
+                3 => {
+                    match current_line_state {
+                        LineState::NewAssign => match token.parse::<f64>() {
+                            Ok(f) => {
+                                vars.insert(var_being_assigned_to.clone(), f);
+                            }
+                            Err(_) => {
+                                eprintln!("invalid f64 number: {}", token);
+                                return None;
+                            }
+                        },
                         _ => todo!(),
                     };
                 }
