@@ -3,6 +3,7 @@ use std::env;
 use std::fs::read_to_string;
 use std::process;
 
+mod expression_parser;
 mod trig;
 
 fn main() {
@@ -24,6 +25,11 @@ fn main() {
         }
     };
 
+    println!(
+        "6 + 7 + (6 - 67) = {}",
+        expression_parser::eval("6 + 7 + ( 6 - 67 )")
+    );
+
     let result = run_script(lines);
 
     match result {
@@ -38,18 +44,11 @@ fn main() {
     };
 }
 
-enum Operator {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Unknown,
-}
-
 enum LineState {
     NewAssign,
     ApplyOperator,
     Sin,
+    Cos,
     DropVar,
     Unknown,
 }
@@ -58,7 +57,6 @@ fn run_script(script: String) -> Option<bool> {
     let mut vars = HashMap::<String, f64>::new();
 
     for (line_idx, line) in script.lines().enumerate() {
-        let _op: Operator = Operator::Unknown;
         let mut current_line_state: LineState = LineState::Unknown;
         let mut var_being_assigned_to = String::new();
 
@@ -69,6 +67,9 @@ fn run_script(script: String) -> Option<bool> {
                         "let" => {
                             current_line_state = LineState::NewAssign;
                         }
+                        "drop" => {
+                            current_line_state = LineState::DropVar;
+                        }
                         "vars" => {
                             println!("currently assigned vars:");
                             for (key, val) in vars.iter() {
@@ -78,6 +79,9 @@ fn run_script(script: String) -> Option<bool> {
                         }
                         "sin" => {
                             current_line_state = LineState::Sin;
+                        }
+                        "cos" => {
+                            current_line_state = LineState::Cos;
                         }
                         v => {
                             if !vars.contains_key(v) {
@@ -96,6 +100,11 @@ fn run_script(script: String) -> Option<bool> {
                             // This is where we read the variable name.
                             var_being_assigned_to = token.to_string();
                         }
+                        LineState::DropVar => {
+                            let var_being_dropped = token.to_string();
+                            vars.remove(&var_being_dropped);
+                            break;
+                        }
                         LineState::Unknown => {
                             eprintln!("syntax error at line {}: {}", line_idx + 1, token);
                             return None;
@@ -103,6 +112,15 @@ fn run_script(script: String) -> Option<bool> {
                         LineState::Sin => match token.parse::<f64>() {
                             Ok(f) => {
                                 println!("{}", trig::sine(f));
+                            }
+                            Err(_) => {
+                                eprintln!("invalid f64 number: {}", token);
+                                return None;
+                            }
+                        },
+                        LineState::Cos => match token.parse::<f64>() {
+                            Ok(f) => {
+                                println!("{}", trig::cosine(f));
                             }
                             Err(_) => {
                                 eprintln!("invalid f64 number: {}", token);
